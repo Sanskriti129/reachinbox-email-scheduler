@@ -1,0 +1,71 @@
+# Infra for local development:   docker compose up -d
+# Whole stack (infra + api + worker): docker compose --profile app up -d --build
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: reachinbox
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    # AOF persistence: delayed BullMQ jobs survive a Redis restart.
+    # noeviction: BullMQ must never have keys evicted under memory pressure.
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--maxmemory-policy", "noeviction"]
+    ports: ["6379:6379"]
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports: ["9200:9200"]
+    volumes: [esdata:/usr/share/elasticsearch/data]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -qv '\"status\":\"red\"'"]
+      interval: 10s
+      retries: 20
+
+  api:
+    profiles: [app]
+    build: .
+    command: ["node", "backend/dist/server.js"]
+    env_file: backend/.env
+    environment: &appenv
+      NODE_ENV: production
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/reachinbox
+      REDIS_URL: redis://redis:6379
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      BACKEND_URL: http://localhost:4000
+      FRONTEND_URL: http://localhost:4000
+    ports: ["4000:4000"]
+    depends_on: &deps
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      elasticsearch: { condition: service_healthy }
+
+  worker:
+    profiles: [app]
+    build: .
+    command: ["node", "backend/dist/worker.js"]
+    env_file: backend/.env
+    environment: *appenv
+    depends_on: *deps
+
+volumes:
+  pgdata:
+  redisdata:
+  esdata:
