@@ -1,6 +1,8 @@
+import { CalendarClock, Gauge, RotateCcw, ShieldCheck } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
+import { Logo } from '../components/layout/Sidebar';
 import { Spinner } from '../components/ui/Spinner';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
@@ -19,7 +21,15 @@ function GoogleIcon() {
 const errorText: Record<string, string> = {
   access_denied: 'Google sign-in was cancelled.',
   invalid_state: 'Your sign-in session expired. Please try again.',
+  not_configured: 'Google login is not configured on the server (set GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).',
 };
+
+const features = [
+  { icon: CalendarClock, title: 'Schedule at scale', text: 'Upload a CSV of leads and pick when sending starts.' },
+  { icon: Gauge, title: 'Safe sending speed', text: 'Per-sender hourly limits and a delay between every email.' },
+  { icon: RotateCcw, title: 'Survives restarts', text: 'Jobs persist in Redis + Postgres. Nothing lost, nothing sent twice.' },
+  { icon: ShieldCheck, title: 'Stay informed', text: 'Slack alerts when a limit is hit, live queue dashboard, search.' },
+];
 
 export function LoginPage() {
   const { user, loading } = useAuth();
@@ -44,52 +54,100 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-full items-center justify-center bg-white px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-line px-8 py-10 shadow-[0_1px_20px_rgba(0,0,0,0.04)]">
-        <h1 className="mb-6 text-center text-2xl font-semibold">Login</h1>
-
-        {error && (
-          <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-center text-sm text-red-600">
-            {errorText[error] ?? 'Sign-in failed. Please try again.'}
-          </p>
-        )}
-
-        <a
-          href={api.googleLoginUrl}
-          onClick={() => setRedirecting(true)}
-          className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-brand-50 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-100"
-        >
-          {redirecting ? <Spinner className="size-4" /> : <GoogleIcon />}
-          Login with Google
-        </a>
-
-        <div className="my-6 flex items-center gap-3 text-xs text-faint">
-          <span className="h-px flex-1 bg-line" />
-          or sign up through email
-          <span className="h-px flex-1 bg-line" />
+    <div className="flex min-h-full">
+      {/* Brand panel (desktop only) */}
+      <aside className="relative hidden w-[46%] flex-col justify-between overflow-hidden bg-[#0f2a1c] p-12 text-white lg:flex">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-60"
+          style={{
+            background:
+              'radial-gradient(600px circle at 15% 10%, rgba(34,180,90,.35), transparent 60%), radial-gradient(500px circle at 90% 90%, rgba(34,180,90,.25), transparent 60%)',
+          }}
+        />
+        <div className="relative">
+          <span className="font-logo text-4xl leading-none">ONB</span>
+          <p className="mt-2 text-sm text-white/60">ReachInbox · Email Scheduler</p>
         </div>
 
-        <form onSubmit={onEmailLogin} className="space-y-3">
-          <input
-            type="email"
-            placeholder="Email ID"
-            aria-label="Email ID"
-            className="h-11 w-full rounded-lg bg-surface px-4 text-sm outline-none focus:ring-2 focus:ring-brand-100"
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            aria-label="Password"
-            className="h-11 w-full rounded-lg bg-surface px-4 text-sm outline-none focus:ring-2 focus:ring-brand-100"
-          />
-          <button
-            type="submit"
-            className="h-11 w-full rounded-lg bg-brand-600 text-sm font-medium text-white hover:bg-brand-700"
+        <div className="relative max-w-md">
+          <h2 className="text-3xl font-semibold leading-tight tracking-tight">
+            Cold outreach that sends itself — on time, at a safe pace.
+          </h2>
+          <ul className="mt-8 space-y-5">
+            {features.map(({ icon: Icon, title, text }) => (
+              <li key={title} className="flex gap-4">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/15">
+                  <Icon className="size-4 text-[#7ee2a3]" />
+                </span>
+                <span>
+                  <span className="block text-sm font-semibold">{title}</span>
+                  <span className="block text-sm text-white/65">{text}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <p className="relative text-xs text-white/40">Built with Express · BullMQ · Redis · Postgres · React</p>
+      </aside>
+
+      {/* Login card (from the Figma) */}
+      <main className="flex flex-1 flex-col items-center justify-center bg-[#fafbfb] px-4 py-10">
+        <div className="mb-8 lg:hidden">
+          <Logo />
+        </div>
+        <div className="w-full max-w-sm rounded-2xl border border-line bg-white px-8 py-10 shadow-[0_8px_30px_rgba(0,0,0,0.05)]">
+          <h1 className="text-center text-2xl font-semibold">Login</h1>
+          <p className="mb-6 mt-1 text-center text-sm text-muted">Welcome back — sign in to your dashboard</p>
+
+          {error && (
+            <p role="alert" className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-center text-sm text-red-600">
+              {errorText[error] ?? 'Sign-in failed. Please try again.'}
+            </p>
+          )}
+
+          <a
+            href={api.googleLoginUrl}
+            onClick={() => setRedirecting(true)}
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-brand-50 text-sm font-medium text-brand-700 ring-1 ring-brand-100 transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
           >
-            Login
-          </button>
-        </form>
-      </div>
+            {redirecting ? <Spinner className="size-4" /> : <GoogleIcon />}
+            {redirecting ? 'Redirecting to Google…' : 'Login with Google'}
+          </a>
+
+          <div className="my-6 flex items-center gap-3 text-xs text-faint">
+            <span className="h-px flex-1 bg-line" />
+            or sign up through email
+            <span className="h-px flex-1 bg-line" />
+          </div>
+
+          <form onSubmit={onEmailLogin} className="space-y-3">
+            <input
+              type="email"
+              placeholder="Email ID"
+              aria-label="Email ID"
+              className="h-11 w-full rounded-lg bg-surface px-4 text-sm outline-none focus:ring-2 focus:ring-brand-100"
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              aria-label="Password"
+              className="h-11 w-full rounded-lg bg-surface px-4 text-sm outline-none focus:ring-2 focus:ring-brand-100"
+            />
+            <button type="submit" className="h-11 w-full rounded-lg bg-brand-600 text-sm font-medium text-white hover:bg-brand-700">
+              Login
+            </button>
+          </form>
+        </div>
+        <p className="mt-6 text-center text-xs text-faint">
+          By continuing you agree to the{' '}
+          <a href="/privacy" className="underline hover:text-ink">
+            Privacy Policy
+          </a>
+          .
+        </p>
+      </main>
     </div>
   );
 }

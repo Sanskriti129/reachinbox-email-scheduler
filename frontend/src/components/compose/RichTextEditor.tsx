@@ -59,7 +59,7 @@ export function RichTextEditor({ value, onChange }: { value: string; onChange: (
   const emit = () => onChange(ref.current?.innerHTML === '<br>' ? '' : (ref.current?.innerHTML ?? ''));
 
   return (
-    <div className="rounded-xl bg-surface">
+    <div className="rounded-2xl border border-line bg-white focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100">
       <div
         ref={ref}
         contentEditable
@@ -70,7 +70,7 @@ export function RichTextEditor({ value, onChange }: { value: string; onChange: (
         onInput={emit}
         className="prose-email min-h-64 px-5 pt-4 text-sm leading-relaxed outline-none"
       />
-      <div className="flex flex-wrap items-center gap-0.5 px-3 pb-3 pt-2">
+      <div className="flex flex-wrap items-center gap-0.5 border-t border-line px-3 py-2">
         {tools.map((t, i) =>
           t === 'sep' ? (
             <span key={i} className="mx-1 h-4 w-px bg-line" />
@@ -85,7 +85,7 @@ export function RichTextEditor({ value, onChange }: { value: string; onChange: (
                 t.run();
                 emit();
               }}
-              className="rounded-md p-1.5 text-muted hover:bg-white hover:text-ink"
+              className="rounded-md p-1.5 text-muted hover:bg-surface hover:text-ink"
             >
               <t.icon className="size-4" />
             </button>

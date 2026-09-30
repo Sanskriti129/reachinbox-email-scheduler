@@ -161,13 +161,25 @@ export async function getEmail(userId: number, id: number) {
 }
 
 export async function counts(userId: number) {
-  const { rows } = await query<{ scheduled: string; sent: string }>(
+  const { rows } = await query<Record<string, string>>(
     `SELECT count(*) FILTER (WHERE status IN ('scheduled','sending')) AS scheduled,
-            count(*) FILTER (WHERE status IN ('sent','failed')) AS sent
+            count(*) FILTER (WHERE status IN ('sent','failed')) AS sent,
+            count(*) FILTER (WHERE status = 'failed') AS failed,
+            count(*) FILTER (WHERE status IN ('scheduled','sending') AND reschedule_count > 0) AS rate_limited,
+            count(*) FILTER (WHERE status = 'sent' AND sent_at > now() - interval '1 hour') AS sent_last_hour,
+            min(scheduled_at) FILTER (WHERE status = 'scheduled') AS next_at
      FROM emails WHERE user_id = $1`,
     [userId],
   );
-  return { scheduled: Number(rows[0].scheduled), sent: Number(rows[0].sent) };
+  const r = rows[0];
+  return {
+    scheduled: Number(r.scheduled),
+    sent: Number(r.sent),
+    failed: Number(r.failed),
+    rateLimited: Number(r.rate_limited),
+    sentLastHour: Number(r.sent_last_hour),
+    nextAt: (r.next_at as unknown as Date | null) ?? null,
+  };
 }
 
 export const limits = () => ({

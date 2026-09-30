@@ -25,6 +25,7 @@ export interface EmailListItem {
 }
 
 export interface EmailDetail extends EmailListItem {
+  created_at: string;
   body: string;
   campaign_id: number;
   attempts: number;
@@ -40,6 +41,10 @@ export interface EmailListResponse {
 export interface Counts {
   scheduled: number;
   sent: number;
+  failed: number;
+  rateLimited: number;
+  sentLastHour: number;
+  nextAt: string | null;
 }
 
 export interface Sender {

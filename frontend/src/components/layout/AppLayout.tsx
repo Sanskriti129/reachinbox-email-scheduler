@@ -62,7 +62,7 @@ export function AppLayout() {
             <Avatar name={user.name} src={user.avatarUrl} size={30} />
           </span>
         </header>
-        <main className="min-h-0 flex-1 overflow-y-auto">
+        <main className="min-h-0 flex-1 overflow-y-auto bg-[#fafbfb]">
           <Outlet context={{ counts: counts.data, refreshCounts: () => void counts.reload(true) } satisfies LayoutContext} />
         </main>
       </div>

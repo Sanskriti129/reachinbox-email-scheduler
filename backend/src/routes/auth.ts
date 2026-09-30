@@ -11,7 +11,7 @@ const redirectUri = () => `${config.BACKEND_URL}/api/auth/google/callback`;
 const STATE_COOKIE = 'ri_oauth_state';
 
 authRouter.get('/google', (_req, res) => {
-  if (!config.GOOGLE_CLIENT_ID) return res.status(500).send('GOOGLE_CLIENT_ID is not configured');
+  if (!config.GOOGLE_CLIENT_ID) return res.redirect(`${config.FRONTEND_URL}/login?error=not_configured`);
   const state = crypto.randomBytes(16).toString('hex');
   res.cookie(STATE_COOKIE, state, { httpOnly: true, sameSite: 'lax', secure: isProd, maxAge: 10 * 60_000 });
 

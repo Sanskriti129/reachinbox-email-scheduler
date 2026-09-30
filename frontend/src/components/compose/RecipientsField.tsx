@@ -1,4 +1,4 @@
-import { Upload, X } from 'lucide-react';
+import { FileDown, Upload, X } from 'lucide-react';
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { useToast } from '../../hooks/useToast';
 import { parseLeadsFile, parseLeadsText } from '../../lib/parseLeads';
@@ -15,6 +15,7 @@ export function RecipientsField({ value, onChange }: { value: string[]; onChange
   const [draft, setDraft] = useState('');
   const [expanded, setExpanded] = useState(false);
   const [fileInfo, setFileInfo] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
 
   const merge = (incoming: string[]) => {
     const set = new Set(value);
@@ -60,9 +61,43 @@ export function RecipientsField({ value, onChange }: { value: string[]; onChange
   const shown = expanded ? value : value.slice(0, VISIBLE_CHIPS);
   const hidden = value.length - shown.length;
 
+  const downloadSample = () => {
+    const csv = [
+      'name,email,company',
+      'Priya Sharma,priya@example.com,Acme',
+      'Rahul Verma,rahul@example.com,Globex',
+      'Anna Lee,anna@example.com,Initech',
+    ].join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sample-leads.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <div>
-      <div className="flex flex-wrap items-center gap-1.5">
+    <div
+      className={`relative -m-2 rounded-xl p-2 transition-colors ${dragging ? 'bg-brand-50 outline-2 outline-dashed outline-brand-500' : ''}`}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        void onFile(e.dataTransfer.files?.[0]);
+      }}
+    >
+      {dragging && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl text-sm font-medium text-brand-700">
+          Drop your CSV to add leads
+        </div>
+      )}
+      <div className={`flex flex-wrap items-center gap-1.5 ${dragging ? 'opacity-30' : ''}`}>
         {shown.map((email) => (
           <span
             key={email}
@@ -124,6 +159,14 @@ export function RecipientsField({ value, onChange }: { value: string[]; onChange
           onChange={(e) => void onFile(e.target.files?.[0])}
         />
       </div>
+      {!value.length && !fileInfo && (
+        <p className="mt-1 text-xs text-faint">
+          Type addresses, paste a list, or drag a .csv file here.{' '}
+          <button type="button" onClick={downloadSample} className="inline-flex items-center gap-1 text-brand-600 hover:underline">
+            <FileDown className="size-3" /> sample CSV
+          </button>
+        </p>
+      )}
       {(fileInfo || value.length > 0) && (
         <p className="mt-1 text-xs text-muted">
           <span className="font-medium text-ink">{value.length}</span> recipient{value.length === 1 ? '' : 's'}

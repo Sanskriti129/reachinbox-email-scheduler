@@ -33,3 +33,15 @@ export const nameFromEmail = (email: string) =>
     .filter(Boolean)
     .map((p) => p[0]!.toUpperCase() + p.slice(1))
     .join(' ');
+
+const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+
+/** "in 3 min", "2 hours ago", "tomorrow" — for quick scanning in lists. */
+export const formatRelative = (iso: string) => {
+  const diff = new Date(iso).getTime() - Date.now();
+  const abs = Math.abs(diff);
+  if (abs < 45_000) return diff >= 0 ? 'in a few seconds' : 'just now';
+  if (abs < 3_600_000) return rtf.format(Math.round(diff / 60_000), 'minute');
+  if (abs < 86_400_000) return rtf.format(Math.round(diff / 3_600_000), 'hour');
+  return rtf.format(Math.round(diff / 86_400_000), 'day');
+};
