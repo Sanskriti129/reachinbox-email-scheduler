@@ -74,17 +74,29 @@ A production-style email scheduler: an Express + BullMQ backend that schedules a
 
 ## Quick start (Docker)
 
+**Everything in containers (tested):**
+
 ```bash
-cp backend/.env.example backend/.env        # then fill in Google + Slack credentials (see below)
-docker compose up -d                        # Postgres, Redis, Elasticsearch
-cd backend  && npm install && npm run dev           # API on :4000
-cd backend  && npm run dev:worker                   # worker (second terminal)
-cd frontend && npm install && npm run dev           # UI on :5173
+cp backend/.env.example backend/.env          # add GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET (see below)
+docker compose --profile app up -d --build    # Postgres, Redis, Elasticsearch, API, worker
 ```
 
-Open http://localhost:5173 and log in with Google. The queue dashboard is at http://localhost:4000/admin/queues.
+Open http://localhost:4000. The queue dashboard is at http://localhost:4000/admin/queues after login. Ethereal sender accounts are created automatically on first boot, so no email setup is needed.
 
-To run everything in containers instead: `docker compose --profile app up -d --build`, then open http://localhost:4000.
+> **Logging in:** Google OAuth needs a client ID/secret. Create one in 2 minutes (see [Google OAuth](#google-oauth)) with the redirect URI `http://localhost:4000/api/auth/google/callback`. Any Google account can then sign in.
+>
+> **Port already in use?** Override any host port: `POSTGRES_PORT=5434 REDIS_PORT=6380 ELASTICSEARCH_PORT=9201 APP_PORT=4001 docker compose --profile app up -d --build`.
+
+**Or: infra in Docker, app in dev mode (hot reload):**
+
+```bash
+docker compose up -d                                # Postgres, Redis, Elasticsearch
+cd backend  && npm install && npm run dev           # API on :4000
+cd backend  && npm run dev:worker                   # worker (second terminal)
+cd frontend && npm install && npm run dev           # UI on http://localhost:5173
+```
+
+**Restart demo:** `docker compose restart worker` (or stop and start the dev worker). Scheduled emails keep their times, and on boot the worker logs `[reconcile] N pending email(s) in DB, M job(s) re-created`.
 
 ## Running the backend and frontend
 
