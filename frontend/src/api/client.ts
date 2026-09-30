@@ -25,6 +25,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers: { 'Content-Type': 'application/json', ...init.headers },
   });
   const data = await res.json().catch(() => ({}));
+  // Session expired mid-use: send the user back to login instead of showing a broken page.
+  if (res.status === 401 && path !== '/auth/me' && !location.pathname.startsWith('/login')) {
+    location.assign('/login?error=session_expired');
+  }
   if (!res.ok) throw new ApiError(res.status, data.error ?? `Request failed (${res.status})`);
   return data as T;
 }
@@ -35,8 +39,9 @@ export const api = {
   googleLoginUrl: '/api/auth/google',
 
   counts: () => request<Counts>('/emails/counts'),
-  emails: (tab: EmailTab, q = '') =>
-    request<EmailListResponse>(`/emails?status=${tab}${q ? `&q=${encodeURIComponent(q)}` : ''}`),
+  emails: (tab: EmailTab, q = '', limit = 50) =>
+    request<EmailListResponse>(`/emails?status=${tab}&limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ''}`),
+  cancelEmail: (id: number) => request<{ ok: true }>(`/emails/${id}`, { method: 'DELETE' }),
   email: (id: number) => request<EmailDetail>(`/emails/${id}`),
   senders: () => request<SendersResponse>('/senders'),
   schedule: (body: ScheduleRequest) =>

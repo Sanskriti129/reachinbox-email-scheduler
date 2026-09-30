@@ -1,22 +1,39 @@
-import { ExternalLink, Gauge } from 'lucide-react';
+import { ExternalLink, Gauge, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { EmailListItem, EmailTab } from '../../api/types';
 import { formatFull, formatRelative, nameFromEmail } from '../../lib/format';
 import { Avatar } from '../ui/Avatar';
 import { StatusPill } from '../ui/StatusPill';
 
-export function EmailRow({ email, tab }: { email: EmailListItem; tab: EmailTab }) {
+export function EmailRow({
+  email,
+  tab,
+  onCancel,
+}: {
+  email: EmailListItem;
+  tab: EmailTab;
+  onCancel?: (id: number) => Promise<void>;
+}) {
   const when = tab === 'sent' ? email.sent_at : email.scheduled_at;
+  const overdue = tab === 'scheduled' && email.status === 'scheduled' && new Date(email.scheduled_at).getTime() < Date.now() - 60_000;
+  const [confirming, setConfirming] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  useEffect(() => {
+    if (!confirming) return;
+    const t = setTimeout(() => setConfirming(false), 3000);
+    return () => clearTimeout(t);
+  }, [confirming]);
   const name = nameFromEmail(email.recipient);
   return (
     <li>
       <Link
         to={`/email/${email.id}`}
-        className="group relative flex items-center gap-4 border-b border-line px-6 py-3.5 transition-colors hover:bg-surface/70 focus-visible:bg-surface focus-visible:outline-none"
+        className="group relative flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-6 py-3.5 transition-colors hover:bg-surface/70 focus-visible:bg-surface focus-visible:outline-none"
         title={when ? `${tab === 'sent' ? 'Sent' : 'Scheduled for'} ${formatFull(when)}` : undefined}
       >
         <span className="absolute inset-y-0 left-0 w-0.5 bg-brand-500 opacity-0 transition-opacity group-hover:opacity-100" />
-        <span className="flex w-48 shrink-0 items-center gap-3">
+        <span className="flex min-w-0 flex-1 items-center gap-3 sm:w-48 sm:flex-none">
           <Avatar name={name || email.recipient} size={30} />
           <span className="min-w-0">
             <span className="block truncate text-sm">
@@ -27,7 +44,7 @@ export function EmailRow({ email, tab }: { email: EmailListItem; tab: EmailTab }
           </span>
         </span>
 
-        <span className="flex min-w-0 flex-1 items-center gap-2">
+        <span className="order-last flex min-w-0 basis-full items-center gap-2 pl-[42px] sm:order-none sm:basis-0 sm:flex-1 sm:pl-0">
           <StatusPill email={email} />
           <span className="min-w-0 truncate text-sm">
             <span className="font-semibold">{email.subject}</span>
@@ -49,9 +66,31 @@ export function EmailRow({ email, tab }: { email: EmailListItem; tab: EmailTab }
           </span>
         )}
 
-        <span className="hidden w-28 shrink-0 text-right text-xs text-muted sm:block">
-          {when ? formatRelative(when) : ''}
+        <span className={`hidden w-28 shrink-0 text-right text-xs sm:block ${overdue ? 'font-medium text-amber-600' : 'text-muted'}`}>
+          {overdue ? 'due now' : when ? formatRelative(when) : ''}
         </span>
+
+        {onCancel && email.status === 'scheduled' && (
+          <button
+            type="button"
+            disabled={cancelling}
+            onClick={async (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (!confirming) return setConfirming(true);
+              setCancelling(true);
+              await onCancel(email.id).finally(() => setCancelling(false));
+            }}
+            className={`shrink-0 rounded-lg px-2 py-1 text-xs font-medium transition ${
+              confirming
+                ? 'bg-red-600 text-white hover:bg-red-700'
+                : 'text-faint opacity-0 hover:bg-red-50 hover:text-red-600 focus-visible:opacity-100 group-hover:opacity-100'
+            }`}
+            aria-label={confirming ? 'Confirm cancel' : 'Cancel this email'}
+          >
+            {cancelling ? '…' : confirming ? 'Confirm' : <X className="size-4" />}
+          </button>
+        )}
 
         {email.preview_url ? (
           <button

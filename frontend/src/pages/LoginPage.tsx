@@ -20,6 +20,7 @@ function GoogleIcon() {
 
 const errorText: Record<string, string> = {
   access_denied: 'Google sign-in was cancelled.',
+  session_expired: 'Your session expired. Please sign in again.',
   invalid_state: 'Your sign-in session expired. Please try again.',
   not_configured: 'Google login is not configured on the server (set GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).',
 };
@@ -66,8 +67,7 @@ export function LoginPage() {
           }}
         />
         <div className="relative">
-          <span className="font-logo text-4xl leading-none">ONB</span>
-          <p className="mt-2 text-sm text-white/60">ReachInbox · Email Scheduler</p>
+          <Logo invert />
         </div>
 
         <div className="relative max-w-md">

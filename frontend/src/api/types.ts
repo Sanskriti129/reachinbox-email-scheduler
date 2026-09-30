@@ -39,6 +39,8 @@ export interface EmailListResponse {
 }
 
 export interface Counts {
+  /** Connected BullMQ workers; 0 means nothing is sending right now, -1 unknown. */
+  workers: number;
   scheduled: number;
   sent: number;
   failed: number;

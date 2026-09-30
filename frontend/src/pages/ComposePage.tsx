@@ -106,10 +106,13 @@ export function ComposePage() {
     const e: Record<string, string> = {};
     if (!senderId) e.sender = 'Choose a sender';
     if (!recipients.length) e.to = 'Add at least one recipient or upload a list';
+    else if (recipients.length > 10_000) e.to = `Up to 10,000 recipients per campaign (you have ${recipients.length.toLocaleString()})`;
     if (!subject.trim()) e.subject = 'Subject is required';
     if (!body.replace(/<[^>]+>|&nbsp;/g, '').trim()) e.body = 'Write a message';
     if (!(delaySec >= 0)) e.delay = 'Delay must be 0 or more';
+    else if (delaySec > 86_400) e.delay = 'Delay can be at most 24 hours (86,400 s)';
     if (!(hourlyLimit > 0)) e.limit = 'Hourly limit must be at least 1';
+    else if (!Number.isInteger(hourlyLimit)) e.limit = 'Hourly limit must be a whole number';
     setErrors(e);
     return Object.keys(e).length === 0;
   };

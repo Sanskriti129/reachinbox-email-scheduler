@@ -43,8 +43,21 @@ export function RecipientsField({ value, onChange }: { value: string[]; onChange
 
   const onFile = async (file?: File) => {
     if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast('That file is larger than 5 MB — please split it into smaller lists.', 'error');
+      return;
+    }
+    if (!/\.(csv|txt)$/i.test(file.name) && !/^text\//.test(file.type)) {
+      toast('Please upload a .csv or .txt file.', 'error');
+      return;
+    }
     try {
       const { emails, invalid, duplicates } = await parseLeadsFile(file);
+      if (!emails.length) {
+        setFileInfo(null);
+        toast(`No valid email addresses found in ${file.name}${invalid ? ` (${invalid} invalid entries)` : ''}.`, 'error');
+        return;
+      }
       const added = merge(emails);
       const parts = [`${emails.length} email${emails.length === 1 ? '' : 's'} detected in ${file.name}`];
       if (duplicates) parts.push(`${duplicates} duplicate${duplicates === 1 ? '' : 's'} removed`);

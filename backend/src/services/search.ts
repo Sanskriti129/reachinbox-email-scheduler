@@ -71,6 +71,10 @@ export function updateEmailDoc(id: number, patch: Partial<ReturnType<typeof toDo
   );
 }
 
+export function deleteEmailDoc(id: number) {
+  return safe('delete', () => es.delete({ index, id: String(id) }));
+}
+
 export async function searchEmails(userId: number, q: string, status?: 'scheduled' | 'sent') {
   const filter: object[] = [{ term: { user_id: userId } }];
   if (status === 'sent') filter.push({ terms: { status: ['sent', 'failed'] } });

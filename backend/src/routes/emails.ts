@@ -2,6 +2,7 @@ import { Router, type Request } from 'express';
 import { ZodError } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
 import {
+  cancelEmail,
   counts,
   getEmail,
   limits,
@@ -44,7 +45,7 @@ emailsRouter.get('/emails/counts', async (req, res) => {
 
 emailsRouter.get('/emails', async (req, res) => {
   const kind = req.query.status === 'sent' ? 'sent' : 'scheduled';
-  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const limit = Math.min(Number(req.query.limit) || 50, 1000);
   const offset = Number(req.query.offset) || 0;
   const q = String(req.query.q ?? '').trim();
 
@@ -67,4 +68,10 @@ emailsRouter.get('/emails/:id', async (req, res) => {
   const email = await getEmail(uid(req), Number(req.params.id));
   if (!email) return res.status(404).json({ error: 'Not found' });
   res.json(email);
+});
+
+emailsRouter.delete('/emails/:id', async (req, res) => {
+  const ok = await cancelEmail(uid(req), Number(req.params.id));
+  if (!ok) return res.status(409).json({ error: 'Only emails that have not started sending can be cancelled' });
+  res.json({ ok: true });
 });

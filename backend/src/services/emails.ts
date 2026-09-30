@@ -3,7 +3,7 @@ import { config } from '../config.js';
 import { pool, query } from '../db/index.js';
 import { emailQueue, enqueueEmail, jobIdFor } from '../lib/queue.js';
 import type { EmailRow, SendEmailJob } from '../types.js';
-import { indexEmails } from './search.js';
+import { deleteEmailDoc, indexEmails } from './search.js';
 
 const emailAddress = z.string().trim().toLowerCase().pipe(z.email());
 
@@ -172,7 +172,10 @@ export async function counts(userId: number) {
     [userId],
   );
   const r = rows[0];
+  // Connected BullMQ workers: lets the UI warn when nobody is processing the queue.
+  const workers = await emailQueue.getWorkersCount().catch(() => -1);
   return {
+    workers,
     scheduled: Number(r.scheduled),
     sent: Number(r.sent),
     failed: Number(r.failed),
@@ -188,3 +191,17 @@ export const limits = () => ({
   maxEmailsPerHour: config.MAX_EMAILS_PER_HOUR,
   workerConcurrency: config.WORKER_CONCURRENCY,
 });
+
+/**
+ * Cancel a not-yet-sent email: delete the row only while it is still 'scheduled'
+ * (a worker that already claimed it wins), then drop its job and search doc.
+ * If a worker picks the job up in between, it finds no row and skips it.
+ */
+export async function cancelEmail(userId: number, id: number) {
+  const { rowCount } = await query(`DELETE FROM emails WHERE id = $1 AND user_id = $2 AND status = 'scheduled'`, [id, userId]);
+  if (!rowCount) return false;
+  const job = await emailQueue.getJob(jobIdFor(id));
+  await job?.remove().catch(() => {}); // an active/locked job can't be removed; it will no-op
+  void deleteEmailDoc(id);
+  return true;
+}

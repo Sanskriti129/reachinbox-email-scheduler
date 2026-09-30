@@ -1,4 +1,4 @@
-import { CircleAlert, Clock, Gauge, PenLine, Send, TriangleAlert } from 'lucide-react';
+import { CircleAlert, Clock, Gauge, PenLine, Send, ServerOff, TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
@@ -12,6 +12,7 @@ import { SkeletonRows } from '../components/ui/Spinner';
 import { StatCard } from '../components/ui/StatCard';
 import { TestModeBanner } from '../components/ui/TestModeBanner';
 import { useAsync } from '../hooks/useAsync';
+import { useToast } from '../hooks/useToast';
 import { formatRelative } from '../lib/format';
 
 function useDebounced<T>(value: T, ms: number) {
@@ -45,12 +46,31 @@ export function EmailListPage({ tab }: { tab: EmailTab }) {
   const { counts, refreshCounts } = useLayout();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
+  const [pageSize, setPageSize] = useState(50);
+  const toast = useToast();
   const q = useDebounced(query.trim(), 300);
 
   // Poll so rows move from Scheduled → Sent live while you watch.
-  const { data, error, loading, reload } = useAsync(() => api.emails(tab, q), [tab, q], { pollMs: 4000 });
+  const { data, error, loading, reload } = useAsync(() => api.emails(tab, q, pageSize), [tab, q, pageSize], { pollMs: 4000 });
 
-  useEffect(() => setQuery(''), [tab]);
+  useEffect(() => {
+    setQuery('');
+    setPageSize(50);
+  }, [tab]);
+
+  const cancel = async (id: number) => {
+    try {
+      await api.cancelEmail(id);
+      toast('Email cancelled — it will not be sent.', 'success');
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    }
+    void reload(true);
+    refreshCounts();
+  };
+
+  const nextOverdue = counts?.nextAt ? new Date(counts.nextAt).getTime() < Date.now() - 60_000 : false;
+  const workerDown = counts?.workers === 0 && (counts?.scheduled ?? 0) > 0;
 
   const items = useMemo(() => {
     const all = data?.items ?? [];
@@ -79,12 +99,25 @@ export function EmailListPage({ tab }: { tab: EmailTab }) {
           tone="orange"
           label="Scheduled"
           value={counts?.scheduled ?? '–'}
-          hint={counts?.nextAt ? `next ${formatRelative(counts.nextAt)}` : 'nothing queued'}
+          hint={counts?.nextAt ? (nextOverdue ? 'due now, waiting for a worker' : `next ${formatRelative(counts.nextAt)}`) : 'nothing queued'}
         />
         <StatCard icon={Send} tone="brand" label="Sent in the last hour" value={counts?.sentLastHour ?? '–'} hint={`${counts?.sent ?? 0} delivered in total`} />
         <StatCard icon={Gauge} tone="amber" label="Waiting on hourly limit" value={counts?.rateLimited ?? '–'} hint="rolled to a later hour" />
         <StatCard icon={TriangleAlert} tone="red" label="Failed" value={counts?.failed ?? '–'} hint="after all retries" />
       </div>
+
+      {workerDown && (
+        <div className="px-6 pb-4">
+          <div role="alert" className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <ServerOff className="mt-0.5 size-4 shrink-0 text-amber-600" />
+            <p>
+              <span className="font-semibold">No worker is running.</span> Your emails are safe and will go out the moment a
+              worker starts (<code className="rounded bg-amber-100 px-1 text-xs">npm run dev:worker</code>). Overdue emails are
+              sent right away, never skipped.
+            </p>
+          </div>
+        </div>
+      )}
 
       {tab === 'sent' && (
         <div className="px-6 pb-4">
@@ -130,13 +163,20 @@ export function EmailListPage({ tab }: { tab: EmailTab }) {
             <>
               <ul>
                 {items.map((e) => (
-                  <EmailRow key={e.id} email={e} tab={tab} />
+                  <EmailRow key={e.id} email={e} tab={tab} onCancel={tab === 'scheduled' ? cancel : undefined} />
                 ))}
               </ul>
-              <p className="px-6 py-3 text-xs text-faint">
-                Showing {items.length} of {data!.total}
-                {data!.search && ' · results from Elasticsearch'}
-              </p>
+              <div className="flex items-center justify-between gap-4 px-6 py-3 text-xs text-faint">
+                <span>
+                  Showing {items.length} of {data!.total}
+                  {data!.search && ' · results from Elasticsearch'}
+                </span>
+                {!data!.search && data!.items.length < data!.total && pageSize < 1000 && (
+                  <Button size="sm" variant="soft" onClick={() => setPageSize((n) => n + 100)}>
+                    Load more
+                  </Button>
+                )}
+              </div>
             </>
           )}
         </div>
