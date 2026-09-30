@@ -9,6 +9,8 @@ export function createRedis() {
   return new Redis(config.REDIS_URL, {
     maxRetriesPerRequest: null,
     enableReadyCheck: true,
+    // Resolve both IPv4 and IPv6 (hosts like Railway use IPv6-only private networking).
+    family: 0,
   });
 }
 
