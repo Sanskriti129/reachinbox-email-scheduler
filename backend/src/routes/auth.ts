@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { Router } from 'express';
-import { config, isProd } from '../config.js';
+import { config, secureCookies } from '../config.js';
 import { query } from '../db/index.js';
 import { clearSession, readSession, setSession } from '../middleware/auth.js';
 import type { UserRow } from '../types.js';
@@ -13,7 +13,7 @@ const STATE_COOKIE = 'ri_oauth_state';
 authRouter.get('/google', (_req, res) => {
   if (!config.GOOGLE_CLIENT_ID) return res.redirect(`${config.FRONTEND_URL}/login?error=not_configured`);
   const state = crypto.randomBytes(16).toString('hex');
-  res.cookie(STATE_COOKIE, state, { httpOnly: true, sameSite: 'lax', secure: isProd, maxAge: 10 * 60_000 });
+  res.cookie(STATE_COOKIE, state, { httpOnly: true, sameSite: 'lax', secure: secureCookies, maxAge: 10 * 60_000 });
 
   const u = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   u.searchParams.set('client_id', config.GOOGLE_CLIENT_ID);

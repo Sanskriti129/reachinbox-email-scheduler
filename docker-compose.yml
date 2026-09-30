@@ -1,5 +1,6 @@
 # Infra for local development:   docker compose up -d
 # Whole stack (infra + api + worker): docker compose --profile app up -d --build
+# Port already taken on your machine? e.g. POSTGRES_PORT=5434 docker compose up -d
 services:
   postgres:
     image: postgres:16-alpine
@@ -7,7 +8,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: reachinbox
-    ports: ["5432:5432"]
+    ports: ["${POSTGRES_PORT:-5432}:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -19,7 +20,7 @@ services:
     # AOF persistence: delayed BullMQ jobs survive a Redis restart.
     # noeviction: BullMQ must never have keys evicted under memory pressure.
     command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--maxmemory-policy", "noeviction"]
-    ports: ["6379:6379"]
+    ports: ["${REDIS_PORT:-6379}:6379"]
     volumes: [redisdata:/data]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -32,7 +33,7 @@ services:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
-    ports: ["9200:9200"]
+    ports: ["${ELASTICSEARCH_PORT:-9200}:9200"]
     volumes: [esdata:/usr/share/elasticsearch/data]
     healthcheck:
       test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -qv '\"status\":\"red\"'"]
@@ -51,7 +52,7 @@ services:
       ELASTICSEARCH_URL: http://elasticsearch:9200
       BACKEND_URL: http://localhost:4000
       FRONTEND_URL: http://localhost:4000
-    ports: ["4000:4000"]
+    ports: ["${APP_PORT:-4000}:4000"]
     depends_on: &deps
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }

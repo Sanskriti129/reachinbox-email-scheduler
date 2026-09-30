@@ -51,3 +51,5 @@ export const config = schema.parse(process.env);
 export type Config = typeof config;
 
 export const isProd = config.NODE_ENV === 'production';
+/** Secure cookies only when served over HTTPS (a local Docker run on http://localhost must still log in). */
+export const secureCookies = config.BACKEND_URL.startsWith('https://');

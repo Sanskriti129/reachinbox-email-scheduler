@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
-import { config, isProd } from '../config.js';
+import { config, secureCookies } from '../config.js';
 
 export const SESSION_COOKIE = 'ri_session';
 
@@ -25,7 +25,7 @@ export function setSession(res: Response, user: SessionUser) {
   res.cookie(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: isProd,
+    secure: secureCookies,
     maxAge: 7 * 24 * 3600 * 1000,
   });
 }
