@@ -18,7 +18,8 @@ export const useLayout = () => useOutletContext<LayoutContext>();
 export function AppLayout() {
   const { user, loading } = useAuth();
   const [drawer, setDrawer] = useState(false);
-  const counts = useAsync(() => api.counts(), [user?.id], { pollMs: 5000 });
+  // Only poll once we know who is signed in.
+  const counts = useAsync(() => (user ? api.counts() : Promise.resolve(null)), [user?.id], { pollMs: 5000 });
 
   if (loading) {
     return (

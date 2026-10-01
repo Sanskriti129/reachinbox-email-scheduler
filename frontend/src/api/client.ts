@@ -19,6 +19,9 @@ export class ApiError extends Error {
   }
 }
 
+/** Set once /auth/me succeeds; only then does a 401 mean "your session expired". */
+let signedIn = false;
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api${path}`, {
     credentials: 'include',
@@ -26,8 +29,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers: { 'Content-Type': 'application/json', ...init.headers },
   });
   const data = await res.json().catch(() => ({}));
-  // Session expired mid-use: send the user back to login instead of showing a broken page.
-  if (res.status === 401 && path !== '/auth/me' && !location.pathname.startsWith('/login')) {
+  if (path === '/auth/me') signedIn = res.ok;
+  // Session expired mid-use (we *were* signed in): back to login instead of a broken page.
+  // Requests made before /auth/me answers must not trigger this.
+  if (res.status === 401 && signedIn && path !== '/auth/me' && !location.pathname.startsWith('/login')) {
+    signedIn = false;
     location.assign('/login?error=session_expired');
   }
   if (!res.ok) throw new ApiError(res.status, data.error ?? `Request failed (${res.status})`);
