@@ -55,9 +55,16 @@ export async function ensureSenders() {
   for (let i = 0; i < missing; i++) {
     const acc = await createEtherealAccount();
     await query(
-      `INSERT INTO senders (email, name, smtp_host, smtp_port, smtp_user, smtp_pass)
-       VALUES ($1,$2,$3,$4,$1,$5) ON CONFLICT (email) DO NOTHING`,
-      [acc.user, SENDER_NAMES[i % SENDER_NAMES.length], acc.smtp.host, acc.smtp.port, encrypt(acc.pass)],
+      `INSERT INTO senders (email, name, smtp_host, smtp_port, smtp_user, smtp_pass, from_email)
+       VALUES ($1,$2,$3,$4,$1,$5,$6) ON CONFLICT (email) DO NOTHING`,
+      [
+        acc.user,
+        SENDER_NAMES[i % SENDER_NAMES.length],
+        acc.smtp.host,
+        acc.smtp.port,
+        encrypt(acc.pass),
+        `${SENDER_NAMES[i % SENDER_NAMES.length]!.split(' ')[0]!.toLowerCase()}@reachinbox-demo.test`,
+      ],
     );
     console.log(`[mailer] created Ethereal sender ${acc.user}`);
   }
@@ -120,7 +127,7 @@ async function healSenders() {
 
 export async function listSenders() {
   const { rows } = await query<Pick<SenderRow, 'id' | 'email' | 'name'>>(
-    'SELECT id, email, name FROM senders ORDER BY id',
+    'SELECT id, COALESCE(from_email, email) AS email, name FROM senders ORDER BY id',
   );
   return rows;
 }
@@ -179,7 +186,9 @@ async function deliver(email: EmailRow, messageId: string): Promise<SendResult> 
   const t = await transporterFor(email.sender_id);
   const sender: SenderRow = (t as any).__sender;
   const info = await t.sendMail({
-    from: `"${sender.name}" <${sender.email}>`,
+    // Friendly From header; the SMTP envelope still uses the account we authenticate as.
+    from: `"${sender.name}" <${sender.from_email ?? sender.email}>`,
+    envelope: { from: sender.smtp_user, to: email.recipient },
     to: email.recipient,
     subject: email.subject,
     html: email.body,

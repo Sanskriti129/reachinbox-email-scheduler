@@ -68,7 +68,7 @@ export async function scheduleCampaign(userId: number, input: ScheduleInput) {
   let campaignId: number;
   try {
     await client.query('BEGIN');
-    const sender = await client.query('SELECT email FROM senders WHERE id = $1', [input.senderId]);
+    const sender = await client.query('SELECT COALESCE(from_email, email) AS email FROM senders WHERE id = $1', [input.senderId]);
     if (!sender.rowCount) throw httpError(400, 'Unknown sender');
 
     const c = await client.query<{ id: number }>(
@@ -134,7 +134,7 @@ export async function reconcileQueue() {
 
 const LIST_COLUMNS = `e.id, e.recipient, e.subject, left(regexp_replace(e.body, '<[^>]+>', ' ', 'g'), 200) AS snippet,
   e.status, e.scheduled_at, e.original_scheduled_at, e.sent_at, e.preview_url, e.error, e.reschedule_count,
-  s.email AS sender_email, s.name AS sender_name`;
+  COALESCE(s.from_email, s.email) AS sender_email, s.name AS sender_name`;
 
 export async function listEmails(
   userId: number,
@@ -164,7 +164,7 @@ export async function listEmails(
 
 export async function getEmail(userId: number, id: number) {
   const { rows } = await query(
-    `SELECT e.*, s.email AS sender_email, s.name AS sender_name FROM emails e
+    `SELECT e.*, COALESCE(s.from_email, s.email) AS sender_email, s.name AS sender_name FROM emails e
      JOIN senders s ON s.id = e.sender_id WHERE e.user_id = $1 AND e.id = $2`,
     [userId, id],
   );

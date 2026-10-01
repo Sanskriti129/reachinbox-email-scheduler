@@ -9,7 +9,7 @@ export type CampaignStatus = 'active' | 'paused' | 'cancelled';
 export async function listCampaigns(userId: number) {
   const { rows } = await query(
     `SELECT c.id, c.subject, c.status, c.start_at, c.delay_ms, c.hourly_limit, c.created_at,
-            s.email AS sender_email, s.name AS sender_name,
+            COALESCE(s.from_email, s.email) AS sender_email, s.name AS sender_name,
             count(e.id)::int AS total,
             count(e.id) FILTER (WHERE e.status = 'sent')::int AS sent,
             count(e.id) FILTER (WHERE e.status = 'failed')::int AS failed,

@@ -16,6 +16,7 @@ export interface SenderRow {
   smtp_port: number;
   smtp_user: string;
   smtp_pass: string;
+  from_email: string | null;
 }
 
 export interface EmailRow {

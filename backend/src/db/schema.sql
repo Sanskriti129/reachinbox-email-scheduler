@@ -80,3 +80,9 @@ DO $$ BEGIN
   ALTER TABLE campaigns ADD CONSTRAINT campaigns_status_check CHECK (status IN ('active', 'paused', 'cancelled'));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 CREATE INDEX IF NOT EXISTS emails_campaign_status_idx ON emails (campaign_id, status);
+
+-- Friendly "From" address shown to recipients and in the UI. Ethereal logins are random
+-- strings (and get rotated when Ethereal expires them); this stays stable.
+ALTER TABLE senders ADD COLUMN IF NOT EXISTS from_email TEXT;
+UPDATE senders SET from_email = split_part(lower(name), ' ', 1) || '@reachinbox-demo.test'
+ WHERE from_email IS NULL AND smtp_host LIKE '%ethereal.email';
