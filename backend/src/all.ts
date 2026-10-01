@@ -1,7 +1,9 @@
 // Runs the API and the worker in one process — handy for single-service hosting.
-// In production at scale you'd run `start` and `start:worker` as separate processes.
+// RUN_WORKER=false starts the API only (e.g. on a host that blocks outbound SMTP;
+// scheduled emails then wait safely until a worker runs somewhere that can send).
 import { startServer } from './app.js';
 import { startWorker } from './workerApp.js';
 
 await startServer();
-await startWorker();
+if (process.env.RUN_WORKER !== 'false') await startWorker();
+else console.log('[all] RUN_WORKER=false — API only, no worker in this process');
