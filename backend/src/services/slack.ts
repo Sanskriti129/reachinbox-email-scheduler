@@ -1,5 +1,6 @@
 import { config } from '../config.js';
 import { query } from '../db/index.js';
+import { decrypt, encrypt } from '../lib/crypto.js';
 
 export const SLACK_SCOPES = ['incoming-webhook', 'chat:write'];
 export const slackRedirectUri = () => `${config.BACKEND_URL}/api/slack/callback`;
@@ -40,7 +41,15 @@ export async function exchangeSlackCode(code: string, userId: number) {
      VALUES ($1,$2,$3,$4,$5,$6)
      ON CONFLICT (user_id) DO UPDATE SET team_id=$2, team_name=$3, channel=$4, webhook_url=$5,
        access_token=$6, created_at=now()`,
-    [userId, data.team?.id, data.team?.name, data.incoming_webhook.channel, data.incoming_webhook.url, data.access_token],
+    // The webhook URL and token are bearer credentials: stored encrypted.
+    [
+      userId,
+      data.team?.id,
+      data.team?.name,
+      data.incoming_webhook.channel,
+      encrypt(data.incoming_webhook.url),
+      data.access_token ? encrypt(data.access_token) : null,
+    ],
   );
 }
 
@@ -64,7 +73,7 @@ export async function notifySlack(userId: number, text: string, blocks?: unknown
   const conn = await getSlackConnection(userId);
   if (!conn) return false;
   try {
-    const res = await fetch(conn.webhook_url, {
+    const res = await fetch(decrypt(conn.webhook_url), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, blocks }),

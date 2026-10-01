@@ -24,6 +24,10 @@ const schema = z.object({
   ELASTICSEARCH_INDEX: z.string().default('emails'),
 
   JWT_SECRET: z.string().min(16).default('dev-only-secret-change-me-please'),
+  // Key for encrypting SMTP passwords / Slack tokens at rest (falls back to one derived from JWT_SECRET).
+  ENCRYPTION_KEY: z.string().default(''),
+  // Comma-separated emails allowed to open the queue dashboard (empty = any signed-in user, for local dev).
+  ADMIN_EMAILS: z.string().default(''),
 
   GOOGLE_CLIENT_ID: z.string().default(''),
   GOOGLE_CLIENT_SECRET: z.string().default(''),

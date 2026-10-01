@@ -1,6 +1,7 @@
 import nodemailer, { type Transporter } from 'nodemailer';
 import { config } from '../config.js';
 import { query } from '../db/index.js';
+import { decrypt, encrypt, isEncrypted } from '../lib/crypto.js';
 import type { EmailRow, SenderRow } from '../types.js';
 
 const SENDER_NAMES = ['Outreach Team', 'Sales Desk', 'Growth Team', 'Partnerships', 'Founders Office'];
@@ -32,6 +33,7 @@ async function createEtherealAccount() {
  * - otherwise, if the table is empty, create fresh Ethereal test accounts.
  */
 export async function ensureSenders() {
+  await encryptLegacySenderPasswords();
   const fromEnv = config.ETHEREAL_SENDERS.split(',')
     .map((s) => s.trim())
     .filter(Boolean)
@@ -44,7 +46,7 @@ export async function ensureSenders() {
     await query(
       `INSERT INTO senders (email, name, smtp_user, smtp_pass) VALUES ($1,$2,$1,$3)
        ON CONFLICT (email) DO UPDATE SET smtp_pass = EXCLUDED.smtp_pass`,
-      [acc.user, SENDER_NAMES[i % SENDER_NAMES.length], acc.pass],
+      [acc.user, SENDER_NAMES[i % SENDER_NAMES.length], encrypt(acc.pass)],
     );
   }
 
@@ -55,12 +57,20 @@ export async function ensureSenders() {
     await query(
       `INSERT INTO senders (email, name, smtp_host, smtp_port, smtp_user, smtp_pass)
        VALUES ($1,$2,$3,$4,$1,$5) ON CONFLICT (email) DO NOTHING`,
-      [acc.user, SENDER_NAMES[i % SENDER_NAMES.length], acc.smtp.host, acc.smtp.port, acc.pass],
+      [acc.user, SENDER_NAMES[i % SENDER_NAMES.length], acc.smtp.host, acc.smtp.port, encrypt(acc.pass)],
     );
     console.log(`[mailer] created Ethereal sender ${acc.user}`);
   }
 
   await healSenders();
+}
+
+/** One-off upgrade: rows written before encryption existed get encrypted in place. */
+async function encryptLegacySenderPasswords() {
+  const { rows } = await query<{ id: number; smtp_pass: string }>('SELECT id, smtp_pass FROM senders');
+  for (const r of rows.filter((r) => !isEncrypted(r.smtp_pass))) {
+    await query('UPDATE senders SET smtp_pass = $2 WHERE id = $1', [r.id, encrypt(r.smtp_pass)]);
+  }
 }
 
 const isAuthError = (err: unknown) => {
@@ -77,7 +87,7 @@ export async function rotateSender(senderId: number) {
   const acc = await createEtherealAccount();
   await query(
     `UPDATE senders SET email = $2, smtp_user = $2, smtp_pass = $3, smtp_host = $4, smtp_port = $5 WHERE id = $1`,
-    [senderId, acc.user, acc.pass, acc.smtp.host, acc.smtp.port],
+    [senderId, acc.user, encrypt(acc.pass), acc.smtp.host, acc.smtp.port],
   );
   transporters.get(senderId)?.close();
   transporters.delete(senderId);
@@ -93,7 +103,7 @@ async function healSenders() {
       const t = nodemailer.createTransport({
         host: s.smtp_host,
         port: s.smtp_port,
-        auth: { user: s.smtp_user, pass: s.smtp_pass },
+        auth: { user: s.smtp_user, pass: decrypt(s.smtp_pass) },
         connectionTimeout: 10_000,
       });
       try {
@@ -127,7 +137,7 @@ async function transporterFor(senderId: number) {
     host: s.smtp_host,
     port: s.smtp_port,
     secure: false,
-    auth: { user: s.smtp_user, pass: s.smtp_pass },
+    auth: { user: s.smtp_user, pass: decrypt(s.smtp_pass) },
     pool: true,
     maxConnections: 2,
     // Fail fast (and retry) instead of hanging if the SMTP server is unreachable.

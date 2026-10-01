@@ -1,3 +1,4 @@
+import sanitizeHtml from 'sanitize-html';
 import { z } from 'zod';
 import { config } from '../config.js';
 import { pool, query } from '../db/index.js';
@@ -10,7 +11,20 @@ const emailAddress = z.string().trim().toLowerCase().pipe(z.email());
 export const scheduleSchema = z.object({
   senderId: z.coerce.number().int().positive(),
   subject: z.string().trim().min(1).max(500),
-  body: z.string().min(1).max(100_000),
+  // Stored XSS guard: the body is HTML shown in the dashboard and sent in emails,
+  // so only formatting tags survive (no <script>, event handlers or javascript: URLs).
+  body: z
+    .string()
+    .min(1)
+    .max(100_000)
+    .transform((html) =>
+      sanitizeHtml(html, {
+        allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img', 'span', 'u', 's']),
+        allowedAttributes: { a: ['href', 'target', 'rel'], img: ['src', 'alt'], '*': ['style'] },
+        allowedSchemes: ['http', 'https', 'mailto'],
+      }),
+    )
+    .refine((html) => html.replace(/<[^>]+>|&nbsp;/g, '').trim().length > 0, 'Body is empty'),
   recipients: z.array(z.string()).min(1).max(10_000),
   startAt: z.coerce.date(),
   delayMs: z.coerce.number().int().min(0).max(24 * 3600 * 1000),

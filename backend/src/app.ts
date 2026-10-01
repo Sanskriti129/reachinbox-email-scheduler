@@ -11,7 +11,7 @@ import { config } from './config.js';
 import { migrate, query } from './db/index.js';
 import { emailQueue } from './lib/queue.js';
 import { redis } from './lib/redis.js';
-import { readSession } from './middleware/auth.js';
+import { apiLimiter, authLimiter, csrfProtection, requireAdmin, securityHeaders } from './middleware/security.js';
 import { authRouter } from './routes/auth.js';
 import { emailsRouter } from './routes/emails.js';
 import { slackRouter } from './routes/slack.js';
@@ -25,6 +25,8 @@ export async function startServer() {
 
   const app = express();
   app.set('trust proxy', 1);
+  app.disable('x-powered-by');
+  app.use(securityHeaders);
   app.use(cors({ origin: config.FRONTEND_URL, credentials: true }));
   app.use(express.json({ limit: '5mb' }));
   app.use(cookieParser());
@@ -39,6 +41,8 @@ export async function startServer() {
     });
   });
 
+  app.use('/api', csrfProtection, apiLimiter);
+  app.use(['/api/auth/google', '/api/slack/install', '/api/slack/callback'], authLimiter);
   app.use('/api/auth', authRouter);
   app.use('/api/slack', slackRouter);
   app.use('/api', emailsRouter);
@@ -47,9 +51,14 @@ export async function startServer() {
   const board = new ExpressAdapter();
   board.setBasePath('/admin/queues');
   createBullBoard({ queues: [new BullMQAdapter(emailQueue)], serverAdapter: board });
+  // Bull Board's UI uses inline scripts, so it gets its own relaxed CSP; access is admin-only.
   app.use(
     '/admin/queues',
-    (req, res, next) => (readSession(req) ? next() : res.redirect(`${config.FRONTEND_URL}/login`)),
+    requireAdmin,
+    (_req, res, next) => {
+      res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data:");
+      next();
+    },
     board.getRouter(),
   );
 
