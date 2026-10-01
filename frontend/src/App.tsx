@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { AuthProvider } from './hooks/useAuth';
 import { ToastProvider } from './hooks/useToast';
+import { CampaignsPage } from './pages/CampaignsPage';
 import { ComposePage } from './pages/ComposePage';
 import { EmailDetailPage } from './pages/EmailDetailPage';
 import { EmailListPage } from './pages/EmailListPage';
@@ -20,6 +21,7 @@ export default function App() {
               <Route index element={<Navigate to="/scheduled" replace />} />
               <Route path="/scheduled" element={<EmailListPage key="scheduled" tab="scheduled" />} />
               <Route path="/sent" element={<EmailListPage key="sent" tab="sent" />} />
+              <Route path="/campaigns" element={<CampaignsPage />} />
               <Route path="/compose" element={<ComposePage />} />
               <Route path="/email/:id" element={<EmailDetailPage />} />
             </Route>

@@ -1,4 +1,5 @@
 import type {
+  Campaign,
   Counts,
   EmailDetail,
   EmailListResponse,
@@ -46,6 +47,12 @@ export const api = {
   senders: () => request<SendersResponse>('/senders'),
   schedule: (body: ScheduleRequest) =>
     request<ScheduleResponse>('/emails/schedule', { method: 'POST', body: JSON.stringify(body) }),
+
+  campaigns: () => request<{ items: Campaign[] }>('/campaigns'),
+  campaignAction: (id: number, action: 'pause' | 'resume' | 'cancel') =>
+    request<Record<string, number>>(`/campaigns/${id}/${action}`, { method: 'POST' }),
+  sendTest: (body: Pick<ScheduleRequest, 'senderId' | 'subject' | 'body'>) =>
+    request<{ previewUrl: string | null }>('/emails/test', { method: 'POST', body: JSON.stringify(body) }),
 
   slackStatus: () => request<SlackStatus>('/slack/status'),
   slackInstallUrl: '/api/slack/install',

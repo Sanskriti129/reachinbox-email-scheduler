@@ -73,3 +73,10 @@ CREATE TABLE IF NOT EXISTS slack_connections (
   access_token  TEXT,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Campaign lifecycle (pause / resume / cancel a whole campaign).
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+DO $$ BEGIN
+  ALTER TABLE campaigns ADD CONSTRAINT campaigns_status_check CHECK (status IN ('active', 'paused', 'cancelled'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS emails_campaign_status_idx ON emails (campaign_id, status);

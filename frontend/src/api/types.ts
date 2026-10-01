@@ -90,3 +90,23 @@ export interface ScheduleResponse {
 export type SlackStatus =
   | { connected: false }
   | { connected: true; team: string; channel: string; since: string };
+
+export type CampaignStatus = 'active' | 'paused' | 'cancelled';
+
+export interface Campaign {
+  id: number;
+  subject: string;
+  status: CampaignStatus;
+  start_at: string;
+  delay_ms: number;
+  hourly_limit: number;
+  created_at: string;
+  sender_email: string;
+  sender_name: string;
+  total: number;
+  sent: number;
+  failed: number;
+  pending: number;
+  next_at: string | null;
+  last_sent_at: string | null;
+}

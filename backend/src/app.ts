@@ -13,6 +13,7 @@ import { emailQueue } from './lib/queue.js';
 import { redis } from './lib/redis.js';
 import { apiLimiter, authLimiter, csrfProtection, requireAdmin, securityHeaders } from './middleware/security.js';
 import { authRouter } from './routes/auth.js';
+import { campaignsRouter } from './routes/campaigns.js';
 import { emailsRouter } from './routes/emails.js';
 import { slackRouter } from './routes/slack.js';
 import { ensureSenders } from './services/mailer.js';
@@ -45,6 +46,7 @@ export async function startServer() {
   app.use(['/api/auth/google', '/api/slack/install', '/api/slack/callback'], authLimiter);
   app.use('/api/auth', authRouter);
   app.use('/api/slack', slackRouter);
+  app.use('/api', campaignsRouter);
   app.use('/api', emailsRouter);
 
   // Live BullMQ dashboard (login required).

@@ -26,6 +26,10 @@ export async function processSendJob(job: Job<SendEmailJob>, token?: string) {
   if (!email) return { skipped: 'deleted' };
   if (email.status === 'sent' || email.status === 'failed') return { skipped: `already ${email.status}` };
 
+  // A paused/cancelled campaign must not send, even if this job was already in flight.
+  const { rows: camp } = await query<{ status: string }>('SELECT status FROM campaigns WHERE id = $1', [email.campaign_id]);
+  if (camp[0] && camp[0].status !== 'active') return { skipped: `campaign ${camp[0].status}` };
+
   const slot = await reserveSlot(senderId, hourlyLimit);
   if (!slot.ok) {
     const nextAt = await nextSlotAfterLimit(senderId);

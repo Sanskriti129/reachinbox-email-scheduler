@@ -118,7 +118,7 @@ export async function scheduleCampaign(userId: number, input: ScheduleInput) {
 export async function reconcileQueue() {
   const { rows } = await query<EmailRow & { hourly_limit: number }>(
     `SELECT e.*, c.hourly_limit FROM emails e JOIN campaigns c ON c.id = e.campaign_id
-     WHERE e.status IN ('scheduled', 'sending') ORDER BY e.scheduled_at`,
+     WHERE e.status IN ('scheduled', 'sending') AND c.status = 'active' ORDER BY e.scheduled_at`,
   );
   let restored = 0;
   for (const e of rows) {

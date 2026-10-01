@@ -1,4 +1,4 @@
-import { Activity, Clock, ExternalLink, PenLine, Send } from 'lucide-react';
+import { Activity, Clock, ExternalLink, Megaphone, PenLine, Send } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import type { Counts } from '../../api/types';
 import { Button } from '../ui/Button';
@@ -93,6 +93,22 @@ export function Sidebar({ counts, onNavigate }: { counts: Counts | null; onNavig
             </li>
           ))}
         </ul>
+      </nav>
+
+      <nav>
+        <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-faint">Manage</p>
+        <NavLink
+          to="/campaigns"
+          onClick={onNavigate}
+          className={({ isActive }) =>
+            `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all ${
+              isActive ? 'bg-brand-50 font-semibold text-ink ring-1 ring-brand-100' : 'text-muted hover:bg-white hover:text-ink'
+            }`
+          }
+        >
+          <Megaphone className="size-4" />
+          <span className="flex-1">Campaigns</span>
+        </NavLink>
       </nav>
 
       <nav>

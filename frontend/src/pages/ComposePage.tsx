@@ -1,4 +1,4 @@
-import { ArrowLeft, CalendarClock, Clock, Gauge, Mail, Timer, Users } from 'lucide-react';
+import { ArrowLeft, CalendarClock, Clock, FlaskConical, Gauge, Mail, Timer, Users } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ApiError, api } from '../api/client';
@@ -80,6 +80,7 @@ export function ComposePage() {
   const [startAt, setStartAt] = useState<Date | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -157,6 +158,23 @@ export function ComposePage() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [submit]);
+
+  const sendTest = async () => {
+    if (!senderId || !subject.trim() || !body.replace(/<[^>]+>|&nbsp;/g, '').trim()) {
+      toast('Add a subject and a message first, then send yourself a test.', 'info');
+      return;
+    }
+    setTesting(true);
+    try {
+      const res = await api.sendTest({ senderId, subject: subject.trim(), body });
+      toast('Test sent to you — opening it on Ethereal.', 'success');
+      if (res.previewUrl) window.open(res.previewUrl, '_blank', 'noopener');
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Could not send the test email', 'error');
+    } finally {
+      setTesting(false);
+    }
+  };
 
   const err = (k: string) => errors[k] && <p className="mt-1 text-xs text-red-500">{errors[k]}</p>;
   const usagePct = sender && limits ? Math.min(100, (sender.usage.sender / Math.max(1, effectiveLimit)) * 100) : 0;
@@ -293,7 +311,17 @@ export function ComposePage() {
             <Button type="submit" className="mt-4 w-full" loading={submitting}>
               {startAt ? 'Schedule emails' : 'Send now'}
             </Button>
-            <p className="mt-2 text-center text-[11px] text-faint">or press Ctrl + Enter</p>
+            <Button
+              type="button"
+              variant="ghost"
+              className="mt-2 w-full"
+              loading={testing}
+              icon={<FlaskConical className="size-4" />}
+              onClick={() => void sendTest()}
+            >
+              Send test to me
+            </Button>
+            <p className="mt-1 text-center text-[11px] text-faint">or press Ctrl + Enter to schedule</p>
           </section>
 
           {sender && limits && (
