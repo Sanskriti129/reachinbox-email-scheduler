@@ -59,6 +59,53 @@ export async function ensureSenders() {
     );
     console.log(`[mailer] created Ethereal sender ${acc.user}`);
   }
+
+  await healSenders();
+}
+
+const isAuthError = (err: unknown) => {
+  const e = err as { code?: string; responseCode?: number };
+  return e?.code === 'EAUTH' || e?.responseCode === 535;
+};
+
+/**
+ * Ethereal deletes test accounts after a while; a deleted account fails with
+ * "535 Authentication failed". Swap in a fresh account for that sender row so
+ * existing campaigns keep working (they reference the sender by id, not address).
+ */
+export async function rotateSender(senderId: number) {
+  const acc = await createEtherealAccount();
+  await query(
+    `UPDATE senders SET email = $2, smtp_user = $2, smtp_pass = $3, smtp_host = $4, smtp_port = $5 WHERE id = $1`,
+    [senderId, acc.user, acc.pass, acc.smtp.host, acc.smtp.port],
+  );
+  transporters.get(senderId)?.close();
+  transporters.delete(senderId);
+  console.warn(`[mailer] sender ${senderId}: Ethereal account expired, replaced with ${acc.user}`);
+}
+
+/** Boot-time check: replace any Ethereal sender whose login no longer works. */
+async function healSenders() {
+  if (config.DRY_RUN_SMTP) return;
+  const { rows } = await query<SenderRow>(`SELECT * FROM senders WHERE smtp_host LIKE '%ethereal.email'`);
+  await Promise.all(
+    rows.map(async (s) => {
+      const t = nodemailer.createTransport({
+        host: s.smtp_host,
+        port: s.smtp_port,
+        auth: { user: s.smtp_user, pass: s.smtp_pass },
+        connectionTimeout: 10_000,
+      });
+      try {
+        await t.verify();
+      } catch (err) {
+        if (isAuthError(err)) await rotateSender(s.id).catch((e) => console.warn('[mailer] rotate failed', e.message));
+        else console.warn(`[mailer] sender ${s.id} check skipped: ${(err as Error).message}`);
+      } finally {
+        t.close();
+      }
+    }),
+  );
 }
 
 export async function listSenders() {
@@ -108,6 +155,17 @@ export async function sendEmail(email: EmailRow): Promise<SendResult> {
     return { messageId, previewUrl: null };
   }
 
+  try {
+    return await deliver(email, messageId);
+  } catch (err) {
+    if (!isAuthError(err)) throw err;
+    // Expired Ethereal account: rotate it and retry once with the new credentials.
+    await rotateSender(email.sender_id);
+    return deliver(email, messageId);
+  }
+}
+
+async function deliver(email: EmailRow, messageId: string): Promise<SendResult> {
   const t = await transporterFor(email.sender_id);
   const sender: SenderRow = (t as any).__sender;
   const info = await t.sendMail({
