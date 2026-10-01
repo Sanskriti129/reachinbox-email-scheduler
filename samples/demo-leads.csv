@@ -1,0 +1,11 @@
+name,email,company,role
+Priya Sharma,priya.sharma@example.com,Acme Corp,Head of Sales
+Rahul Verma,rahul.verma@example.com,Globex,Founder
+Ananya Iyer,ananya.iyer@example.com,Initech,Marketing Lead
+Arjun Mehta,arjun.mehta@example.com,Umbrella Labs,CTO
+Neha Gupta,neha.gupta@example.com,Stark Digital,Growth Manager
+Karan Singh,karan.singh@example.com,Wayne Media,VP Partnerships
+Sneha Reddy,sneha.reddy@example.com,Hooli,Product Manager
+Vikram Nair,vikram.nair@example.com,Pied Piper,CEO
+Priya Sharma (duplicate),PRIYA.SHARMA@example.com,Acme Corp,Head of Sales
+Broken Row,not-an-email,Nowhere Inc,Unknown
