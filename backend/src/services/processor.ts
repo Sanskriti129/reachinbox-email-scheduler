@@ -52,7 +52,14 @@ export async function processSendJob(job: Job<SendEmailJob>, token?: string) {
   );
   if (!claim.rowCount) {
     await releaseSlot(senderId);
-    return { skipped: 'claimed by another worker' };
+    const { rows: now } = await query<{ status: string }>('SELECT status FROM emails WHERE id = $1', [emailId]);
+    if (now[0]?.status === 'sending') {
+      // Someone holds a fresh lock. If that worker is alive it will finish; if it died,
+      // the lock ages out — so check again after the lock window instead of dropping the job.
+      await job.moveToDelayed(Date.now() + 150_000, token);
+      throw new DelayedError();
+    }
+    return { skipped: `already ${now[0]?.status ?? 'deleted'}` };
   }
 
   try {
