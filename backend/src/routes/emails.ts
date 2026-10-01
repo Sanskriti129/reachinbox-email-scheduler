@@ -1,5 +1,5 @@
 import { Router, type Request } from 'express';
-import { ZodError } from 'zod';
+import { asyncRoute } from '../lib/http.js';
 import { requireAuth } from '../middleware/auth.js';
 import { scheduleLimiter } from '../middleware/security.js';
 import {
@@ -27,18 +27,11 @@ emailsRouter.get('/senders', async (_req, res) => {
 });
 
 /** Schedule a campaign: one email per recipient, spaced by delayMs, starting at startAt. */
-emailsRouter.post('/emails/schedule', scheduleLimiter, async (req, res) => {
-  try {
-    const input = scheduleSchema.parse(req.body);
-    const result = await scheduleCampaign(uid(req), input);
-    res.status(201).json(result);
-  } catch (e) {
-    if (e instanceof ZodError) return res.status(400).json({ error: 'Invalid request', issues: e.issues });
-    const status = (e as { status?: number }).status ?? 500;
-    if (status === 500) console.error('[schedule]', e);
-    res.status(status).json({ error: (e as Error).message });
-  }
-});
+emailsRouter.post(
+  '/emails/schedule',
+  scheduleLimiter,
+  asyncRoute((req) => scheduleCampaign(uid(req), scheduleSchema.parse(req.body)), 201),
+);
 
 emailsRouter.get('/emails/counts', async (req, res) => {
   res.json(await counts(uid(req)));

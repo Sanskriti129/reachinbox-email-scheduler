@@ -1,7 +1,8 @@
 import { ExternalLink, Gauge, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { EmailListItem, EmailTab } from '../../api/types';
+import { useConfirm } from '../../hooks/useConfirm';
 import { formatFull, formatRelative, nameFromEmail } from '../../lib/format';
 import { Avatar } from '../ui/Avatar';
 import { StatusPill } from '../ui/StatusPill';
@@ -17,13 +18,8 @@ export function EmailRow({
 }) {
   const when = tab === 'sent' ? email.sent_at : email.scheduled_at;
   const overdue = tab === 'scheduled' && email.status === 'scheduled' && new Date(email.scheduled_at).getTime() < Date.now() - 60_000;
-  const [confirming, setConfirming] = useState(false);
+  const { armed: confirming, arm } = useConfirm();
   const [cancelling, setCancelling] = useState(false);
-  useEffect(() => {
-    if (!confirming) return;
-    const t = setTimeout(() => setConfirming(false), 3000);
-    return () => clearTimeout(t);
-  }, [confirming]);
   const name = nameFromEmail(email.recipient);
   return (
     <li>
@@ -77,7 +73,7 @@ export function EmailRow({
             onClick={async (e) => {
               e.preventDefault();
               e.stopPropagation();
-              if (!confirming) return setConfirming(true);
+              if (!confirming) return arm();
               setCancelling(true);
               await onCancel(email.id).finally(() => setCancelling(false));
             }}

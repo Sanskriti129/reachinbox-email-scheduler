@@ -11,6 +11,7 @@ import { TestModeBanner } from '../components/ui/TestModeBanner';
 import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../hooks/useToast';
 import { formatFull } from '../lib/format';
+import { isBlankHtml } from '../lib/html';
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -109,7 +110,7 @@ export function ComposePage() {
     if (!recipients.length) e.to = 'Add at least one recipient or upload a list';
     else if (recipients.length > 10_000) e.to = `Up to 10,000 recipients per campaign (you have ${recipients.length.toLocaleString()})`;
     if (!subject.trim()) e.subject = 'Subject is required';
-    if (!body.replace(/<[^>]+>|&nbsp;/g, '').trim()) e.body = 'Write a message';
+    if (isBlankHtml(body)) e.body = 'Write a message';
     if (!(delaySec >= 0)) e.delay = 'Delay must be 0 or more';
     else if (delaySec > 86_400) e.delay = 'Delay can be at most 24 hours (86,400 s)';
     if (!(hourlyLimit > 0)) e.limit = 'Hourly limit must be at least 1';
@@ -160,7 +161,7 @@ export function ComposePage() {
   }, [submit]);
 
   const sendTest = async () => {
-    if (!senderId || !subject.trim() || !body.replace(/<[^>]+>|&nbsp;/g, '').trim()) {
+    if (!senderId || !subject.trim() || isBlankHtml(body)) {
       toast('Add a subject and a message first, then send yourself a test.', 'info');
       return;
     }

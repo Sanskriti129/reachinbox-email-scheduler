@@ -1,6 +1,6 @@
 import { pool, query } from '../db/index.js';
-import { emailQueue, jobIdFor } from '../lib/queue.js';
-import type { SendEmailJob } from '../types.js';
+import { httpError } from '../lib/http.js';
+import { enqueueEmails, removeEmailJobs } from '../lib/queue.js';
 import { sendEmail } from './mailer.js';
 import { deleteEmailDoc, updateEmailDoc } from './search.js';
 
@@ -28,8 +28,6 @@ export async function listCampaigns(userId: number) {
   return rows;
 }
 
-const httpError = (status: number, message: string) => Object.assign(new Error(message), { status });
-
 async function ownedCampaign(userId: number, id: number) {
   const { rows } = await query<{ id: number; status: CampaignStatus; delay_ms: number; hourly_limit: number }>(
     'SELECT id, status, delay_ms, hourly_limit FROM campaigns WHERE id = $1 AND user_id = $2',
@@ -37,12 +35,6 @@ async function ownedCampaign(userId: number, id: number) {
   );
   if (!rows[0]) throw httpError(404, 'Campaign not found');
   return rows[0];
-}
-
-async function removeJobs(emailIds: number[]) {
-  // Delayed/waiting jobs are removed; one a worker is holding right now can't be,
-  // but the processor re-checks the campaign status before sending, so it no-ops.
-  await Promise.all(emailIds.map(async (id) => (await emailQueue.getJob(jobIdFor(id)))?.remove().catch(() => {})));
 }
 
 /**
@@ -54,7 +46,7 @@ export async function pauseCampaign(userId: number, id: number) {
   if (c.status !== 'active') throw httpError(409, `Campaign is already ${c.status}`);
   await query(`UPDATE campaigns SET status = 'paused' WHERE id = $1`, [id]);
   const { rows } = await query<{ id: number }>(`SELECT id FROM emails WHERE campaign_id = $1 AND status = 'scheduled'`, [id]);
-  await removeJobs(rows.map((r) => r.id));
+  await removeEmailJobs(rows.map((r) => r.id));
   return { paused: rows.length };
 }
 
@@ -91,14 +83,8 @@ export async function resumeCampaign(userId: number, id: number) {
   }
 
   // Old (completed/removed) jobs with the same deterministic id would make addBulk a no-op.
-  await removeJobs(rows.map((r) => r.id));
-  await emailQueue.addBulk(
-    rows.map((r) => ({
-      name: 'send',
-      data: { emailId: r.id, senderId: r.sender_id, hourlyLimit: c.hourly_limit } satisfies SendEmailJob,
-      opts: { jobId: jobIdFor(r.id), delay: Math.max(0, r.scheduled_at.getTime() - Date.now()) },
-    })),
-  );
+  await removeEmailJobs(rows.map((r) => r.id));
+  await enqueueEmails(rows, c.hourly_limit);
   for (const r of rows) void updateEmailDoc(r.id, { scheduled_at: r.scheduled_at });
   return { resumed: rows.length };
 }
@@ -112,7 +98,7 @@ export async function cancelCampaign(userId: number, id: number) {
     `DELETE FROM emails WHERE campaign_id = $1 AND status = 'scheduled' RETURNING id`,
     [id],
   );
-  await removeJobs(rows.map((r) => r.id));
+  await removeEmailJobs(rows.map((r) => r.id));
   for (const r of rows) void deleteEmailDoc(r.id);
   return { cancelled: rows.length };
 }

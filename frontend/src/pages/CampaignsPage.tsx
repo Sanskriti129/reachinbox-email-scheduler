@@ -1,5 +1,5 @@
 import { CircleAlert, Megaphone, Pause, PenLine, Play, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { Campaign, CampaignStatus } from '../api/types';
@@ -8,6 +8,7 @@ import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/EmptyState';
 import { SkeletonRows } from '../components/ui/Spinner';
 import { useAsync } from '../hooks/useAsync';
+import { useConfirm } from '../hooks/useConfirm';
 import { useToast } from '../hooks/useToast';
 import { formatFull, formatRelative } from '../lib/format';
 
@@ -37,12 +38,7 @@ function Progress({ c }: { c: Campaign }) {
 
 function CampaignCard({ c, onAction }: { c: Campaign; onAction: (id: number, a: 'pause' | 'resume' | 'cancel') => Promise<void> }) {
   const [busy, setBusy] = useState<string | null>(null);
-  const [confirmCancel, setConfirmCancel] = useState(false);
-  useEffect(() => {
-    if (!confirmCancel) return;
-    const t = setTimeout(() => setConfirmCancel(false), 3000);
-    return () => clearTimeout(t);
-  }, [confirmCancel]);
+  const { armed: confirmCancel, arm: armCancel } = useConfirm();
 
   const done = c.status === 'active' && c.pending === 0;
   // Every email cancelled individually → treat the campaign as cancelled, not "done".
@@ -98,7 +94,7 @@ function CampaignCard({ c, onAction }: { c: Campaign; onAction: (id: number, a: 
             variant={confirmCancel ? 'danger' : 'ghost'}
             icon={<X className="size-3.5" />}
             loading={busy === 'cancel'}
-            onClick={() => (confirmCancel ? run('cancel') : setConfirmCancel(true))}
+            onClick={() => (confirmCancel ? run('cancel') : armCancel())}
           >
             {confirmCancel ? `Cancel ${c.pending}?` : 'Cancel'}
           </Button>

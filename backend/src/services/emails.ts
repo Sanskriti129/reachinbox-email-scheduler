@@ -2,8 +2,9 @@ import sanitizeHtml from 'sanitize-html';
 import { z } from 'zod';
 import { config } from '../config.js';
 import { pool, query } from '../db/index.js';
-import { emailQueue, enqueueEmail, jobIdFor } from '../lib/queue.js';
-import type { EmailRow, SendEmailJob } from '../types.js';
+import { httpError } from '../lib/http.js';
+import { emailQueue, enqueueEmails, jobIdFor, removeEmailJobs } from '../lib/queue.js';
+import type { EmailRow } from '../types.js';
 import { deleteEmailDoc, indexEmails } from './search.js';
 
 const emailAddress = z.string().trim().toLowerCase().pipe(z.email());
@@ -57,7 +58,7 @@ export function cleanRecipients(raw: string[]) {
  */
 export async function scheduleCampaign(userId: number, input: ScheduleInput) {
   const { valid, invalid, duplicates } = cleanRecipients(input.recipients);
-  if (!valid.length) throw Object.assign(new Error('No valid email addresses'), { status: 400 });
+  if (!valid.length) throw httpError(400, 'No valid email addresses');
 
   const start = Math.max(input.startAt.getTime(), Date.now());
   const times = valid.map((_, i) => new Date(start + i * input.delayMs));
@@ -68,7 +69,7 @@ export async function scheduleCampaign(userId: number, input: ScheduleInput) {
   try {
     await client.query('BEGIN');
     const sender = await client.query('SELECT email FROM senders WHERE id = $1', [input.senderId]);
-    if (!sender.rowCount) throw Object.assign(new Error('Unknown sender'), { status: 400 });
+    if (!sender.rowCount) throw httpError(400, 'Unknown sender');
 
     const c = await client.query<{ id: number }>(
       `INSERT INTO campaigns (user_id, sender_id, subject, body, start_at, delay_ms, hourly_limit)
@@ -94,16 +95,8 @@ export async function scheduleCampaign(userId: number, input: ScheduleInput) {
     client.release();
   }
 
-  // Enqueue in chunks. If the process dies half-way, reconcileQueue() picks up the rest.
-  for (let i = 0; i < rows.length; i += 500) {
-    await emailQueue.addBulk(
-      rows.slice(i, i + 500).map((r) => ({
-        name: 'send',
-        data: { emailId: r.id, senderId: r.sender_id, hourlyLimit: input.hourlyLimit } satisfies SendEmailJob,
-        opts: { jobId: jobIdFor(r.id), delay: Math.max(0, r.scheduled_at.getTime() - Date.now()) },
-      })),
-    );
-  }
+  // If the process dies before this finishes, reconcileQueue() enqueues the rest on next boot.
+  await enqueueEmails(rows, input.hourlyLimit);
   void indexEmails(rows);
 
   return { campaignId, scheduled: rows.length, invalid, duplicates, firstAt: times[0], lastAt: times.at(-1) };
@@ -120,7 +113,7 @@ export async function reconcileQueue() {
     `SELECT e.*, c.hourly_limit FROM emails e JOIN campaigns c ON c.id = e.campaign_id
      WHERE e.status IN ('scheduled', 'sending') AND c.status = 'active' ORDER BY e.scheduled_at`,
   );
-  let restored = 0;
+  const missing: typeof rows = [];
   for (const e of rows) {
     const job = await emailQueue.getJob(jobIdFor(e.id));
     if (job) {
@@ -128,9 +121,13 @@ export async function reconcileQueue() {
       if (state !== 'completed' && state !== 'failed' && state !== 'unknown') continue;
       await job.remove().catch(() => {});
     }
-    await enqueueEmail({ emailId: e.id, senderId: e.sender_id, hourlyLimit: e.hourly_limit }, e.scheduled_at);
-    restored++;
+    missing.push(e);
   }
+  // Group by campaign limit so each job carries the right hourly limit.
+  for (const limit of new Set(missing.map((e) => e.hourly_limit))) {
+    await enqueueEmails(missing.filter((e) => e.hourly_limit === limit), limit);
+  }
+  const restored = missing.length;
   console.log(`[reconcile] ${rows.length} pending email(s) in DB, ${restored} job(s) re-created`);
   return { pending: rows.length, restored };
 }
@@ -214,8 +211,7 @@ export const limits = () => ({
 export async function cancelEmail(userId: number, id: number) {
   const { rowCount } = await query(`DELETE FROM emails WHERE id = $1 AND user_id = $2 AND status = 'scheduled'`, [id, userId]);
   if (!rowCount) return false;
-  const job = await emailQueue.getJob(jobIdFor(id));
-  await job?.remove().catch(() => {}); // an active/locked job can't be removed; it will no-op
+  await removeEmailJobs([id]);
   void deleteEmailDoc(id);
   return true;
 }

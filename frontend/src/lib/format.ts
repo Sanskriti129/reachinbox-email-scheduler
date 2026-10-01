@@ -10,15 +10,6 @@ export const formatPillTime = (iso: string) => {
 
 export const formatFull = (iso: string) => full.format(new Date(iso));
 
-/** Relative-ish label for the right side of rows: today → time, otherwise date. */
-export const formatShort = (iso: string) => {
-  const d = new Date(iso);
-  const sameDay = d.toDateString() === new Date().toDateString();
-  return sameDay
-    ? d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-    : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-};
-
 /** Value for <input type="datetime-local"> in the user's local timezone. */
 export const toLocalInput = (d: Date) => {
   const pad = (n: number) => String(n).padStart(2, '0');

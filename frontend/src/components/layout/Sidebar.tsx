@@ -35,6 +35,11 @@ export function Logo({ tagline = true, invert = false }: { tagline?: boolean; in
   );
 }
 
+const navClass = ({ isActive }: { isActive: boolean }) =>
+  `group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all ${
+    isActive ? 'bg-brand-50 font-semibold text-ink ring-1 ring-brand-100' : 'text-muted hover:bg-white hover:text-ink'
+  }`;
+
 const nav = [
   { to: '/scheduled', label: 'Scheduled', icon: Clock, key: 'scheduled' as const },
   { to: '/sent', label: 'Sent', icon: Send, key: 'sent' as const },
@@ -68,13 +73,7 @@ export function Sidebar({ counts, onNavigate }: { counts: Counts | null; onNavig
               <NavLink
                 to={to}
                 onClick={onNavigate}
-                className={({ isActive }) =>
-                  `group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all ${
-                    isActive
-                      ? 'bg-brand-50 font-semibold text-ink ring-1 ring-brand-100'
-                      : 'text-muted hover:bg-white hover:text-ink'
-                  }`
-                }
+                className={navClass}
               >
                 {({ isActive }) => (
                   <>
@@ -100,11 +99,7 @@ export function Sidebar({ counts, onNavigate }: { counts: Counts | null; onNavig
         <NavLink
           to="/campaigns"
           onClick={onNavigate}
-          className={({ isActive }) =>
-            `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all ${
-              isActive ? 'bg-brand-50 font-semibold text-ink ring-1 ring-brand-100' : 'text-muted hover:bg-white hover:text-ink'
-            }`
-          }
+          className={navClass}
         >
           <Megaphone className="size-4" />
           <span className="flex-1">Campaigns</span>
