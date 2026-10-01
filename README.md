@@ -1,5 +1,7 @@
 # ReachInbox — Full-stack Email Job Scheduler
 
+![CI](https://github.com/Sanskriti129/reachinbox-email-scheduler/actions/workflows/ci.yml/badge.svg)
+
 A production-style email scheduler: an Express + BullMQ backend that schedules and sends emails through Ethereal SMTP, and a React dashboard (built to the provided Figma) to compose campaigns and watch them go out.
 
 - **No cron anywhere.** Every email is a BullMQ *delayed job* persisted in Redis, with Postgres as the source of truth.
@@ -27,7 +29,8 @@ A production-style email scheduler: an Express + BullMQ backend that schedules a
    - [Search](#search-elasticsearch)
 6. [API](#api)
 7. [Features implemented](#features-implemented)
-8. [Assumptions & trade-offs](#assumptions-shortcuts--trade-offs)
+8. [Beyond the brief: security, campaign controls, tests & CI](#beyond-the-brief)
+9. [Assumptions & trade-offs](#assumptions-shortcuts--trade-offs)
 
 ---
 
@@ -260,6 +263,9 @@ All routes except auth callbacks need the session cookie.
 | `GET /api/emails?status=scheduled\|sent&q=&limit=&offset=` | list (and Elasticsearch search when `q` is set) |
 | `GET /api/emails/:id`, `GET /api/emails/counts` | detail, tab counts |
 | `GET /api/slack/install` → `/callback`, `GET /api/slack/status`, `POST /api/slack/test`, `DELETE /api/slack` | Slack |
+| `GET /api/campaigns`, `POST /api/campaigns/:id/pause\|resume\|cancel` | campaign list with progress, lifecycle controls |
+| `DELETE /api/emails/:id` | cancel one scheduled email |
+| `POST /api/emails/test` | send a test of the current draft to yourself |
 | `GET /api/health` | DB / Redis / ES status + queue counts |
 | `/admin/queues` | Bull Board (login required) |
 
@@ -308,6 +314,54 @@ Content-Type: application/json
 | Email detail with Ethereal preview link | `pages/EmailDetailPage.tsx` |
 | Search (Elasticsearch), filter, refresh, live updates | `components/emails/Toolbar.tsx`, polling in `useAsync` |
 | Responsive (mobile drawer) | `components/layout/AppLayout.tsx` |
+
+---
+
+## Beyond the brief
+
+### Security
+| Protection | How |
+| --- | --- |
+| Security headers | `helmet` with a strict Content-Security-Policy (only our JS/CSS, Google Fonts, Google avatars), HSTS, `nosniff`, no framing |
+| API rate limiting | `express-rate-limit` with a **Redis store** (works across instances): 300 req/min per user, 10 schedule calls/min, 60 auth calls/15 min per IP → `429` |
+| CSRF | SameSite=Lax cookies **plus** an Origin check and JSON-only bodies on every state-changing request (`403` / `415` otherwise) |
+| Stored XSS | Email bodies are sanitised server-side (`sanitize-html`: no `<script>`, event handlers or `javascript:` URLs) and again with DOMPurify when rendered |
+| Secrets at rest | SMTP passwords and Slack webhook URLs/tokens are encrypted with **AES-256-GCM** (`ENCRYPTION_KEY`); legacy plaintext rows are encrypted on boot |
+| Least privilege | The queue dashboard (`/admin/queues`) is limited to `ADMIN_EMAILS`; every query is scoped to the signed-in user |
+| Sessions | Signed JWT in an httpOnly, SameSite=Lax cookie (Secure over HTTPS); OAuth `state` checks on Google and Slack |
+
+### Campaign controls
+- **Campaigns page**: every Compose becomes a campaign, with live progress (sent / failed / to go).
+- **Pause / Resume / Cancel** a whole campaign. Pause pulls its jobs from the queue (reconcile won't resurrect them); resume re-queues the remaining emails in order and keeps their spacing; cancel drops the unsent emails and keeps the history. The worker also re-checks campaign status before sending, so an in-flight job of a paused campaign never sends.
+- **Cancel a single scheduled email** from the list.
+- **Send test to myself** from Compose: delivers right away to your own address and opens the Ethereal preview.
+
+### Reliability extras
+- **Self-healing senders**: Ethereal deletes test accounts after a while (`535 Authentication failed`). Senders are verified on boot, and an auth failure rotates in a fresh Ethereal account and retries; campaigns reference senders by id, so nothing else changes.
+- Stuck `sending` rows (worker crashed mid-send) are re-checked after the lock expires instead of being dropped.
+- SMTP connection/greeting/socket timeouts so an unreachable server fails fast and retries with backoff.
+- UI shows when **no worker is running** (emails are safe and send as soon as one starts).
+
+### Tests & CI
+`cd backend && npm test` runs integration tests against real Postgres + Redis (isolated test DB and Redis DB 15):
+
+| Test | Proves |
+| --- | --- |
+| 50 concurrent reservations for 5 slots → exactly 5 | the Lua rate limiter can't be overshot |
+| two workers process the same email → one send | idempotent claim |
+| replaying a sent job → no-op | safe retries / replays |
+| hourly limit hit → job moved to next window, row rescheduled | limits never drop or fail jobs |
+| delete a job, reconcile → restored once, second run → 0 | restart recovery is idempotent |
+| paused campaign → not sent, not resurrected; resume → re-queued | campaign controls |
+| SMTP down → back to `scheduled`, slot refunded; last attempt → `failed` | failure handling never leaves `sending` |
+| AES-GCM round-trip, fresh IV, tamper detection | secrets at rest |
+
+GitHub Actions (`.github/workflows/ci.yml`) runs typecheck, tests (with Postgres and Redis service containers) and both builds on every push.
+
+Locally with Docker: `docker compose up -d postgres redis` then `npm test`. With other ports: `TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5434/reachinbox_test TEST_REDIS_URL=redis://localhost:6380/15 npm test`.
+
+### A note on hosting
+Free PaaS tiers (Railway Trial/Hobby, Render Free) block outbound SMTP ports, so a fully hosted demo needs a paid plan. The app itself is host-agnostic (one Docker image; `all.js` runs API + worker, or run them separately), and the demo video shows it running end to end.
 
 ---
 
