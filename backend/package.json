@@ -12,7 +12,8 @@
     "start:all": "node dist/all.js",
     "migrate": "tsx src/db/migrate.ts",
     "load-test": "tsx scripts/loadTest.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "engines": {
     "node": ">=20"
@@ -48,6 +49,7 @@
     "@types/pg": "^8.23.1",
     "@types/sanitize-html": "^2.16.2",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
   }
 }
