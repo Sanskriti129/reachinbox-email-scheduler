@@ -71,9 +71,10 @@ export async function processSendJob(job: Job<SendEmailJob>, token?: string) {
     const finalAttempt = job.attemptsMade + 1 >= (job.opts.attempts ?? config.JOB_ATTEMPTS);
     const status = finalAttempt ? 'failed' : 'scheduled';
     await query(
-      `UPDATE emails SET status = $2, error = $3, locked_at = NULL, sent_at = CASE WHEN $2 = 'failed' THEN now() END
+      `UPDATE emails SET status = $2::email_status, error = $3, locked_at = NULL,
+         sent_at = CASE WHEN $4::boolean THEN now() END
        WHERE id = $1`,
-      [emailId, status, (err as Error).message],
+      [emailId, status, (err as Error).message, finalAttempt],
     );
     if (finalAttempt) void updateEmailDoc(emailId, { status: 'failed', sent_at: new Date() });
     log(`email ${emailId} failed (attempt ${job.attemptsMade + 1}): ${(err as Error).message}`);

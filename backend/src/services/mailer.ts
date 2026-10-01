@@ -83,6 +83,10 @@ async function transporterFor(senderId: number) {
     auth: { user: s.smtp_user, pass: s.smtp_pass },
     pool: true,
     maxConnections: 2,
+    // Fail fast (and retry) instead of hanging if the SMTP server is unreachable.
+    connectionTimeout: 15_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 30_000,
   });
   (t as any).__sender = s;
   transporters.set(senderId, t);
